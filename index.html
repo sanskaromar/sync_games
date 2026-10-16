@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GameVault — Unified Game Library Catalog</title>
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Inter Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            vault: {
+              bg: '#090d16',
+              card: '#111827',
+              cardHover: '#1a2438',
+              border: '#1f2937',
+              accent: '#38bdf8'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #090d16;
+      color: #f3f4f6;
+      overflow-x: hidden;
+    }
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #090d16;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1f2937;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #374151;
+    }
+    .card-shine {
+      transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .card-shine:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 12px 28px -8px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(56, 189, 248, 0.25);
+    }
+    .drop-active {
+      outline: 3px dashed #38bdf8 !important;
+      outline-offset: -12px;
+      background-color: rgba(56, 189, 248, 0.05) !important;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col font-sans antialiased selection:bg-sky-500 selection:text-white">
+
+  <!-- Full-Window Drag & Drop Overlay -->
+  <div id="drop-overlay" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/85 backdrop-blur-md p-6 pointer-events-none">
+    <div class="max-w-lg w-full border-2 border-dashed border-sky-400 rounded-2xl p-10 text-center bg-slate-900/90 shadow-2xl">
+      <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400">
+        <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+        </svg>
+      </div>
+      <h3 class="text-xl font-bold text-white mb-1">Drop Catalog File Here</h3>
+      <p class="text-sm text-slate-400">Supports <code class="text-sky-300 font-mono">game_catalog.json</code> or <code class="text-sky-300 font-mono">game_catalog.csv</code></p>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed bottom-5 right-5 z-50 hidden items-center gap-3 px-4 py-3 rounded-xl bg-slate-900 border border-slate-700 text-sm text-slate-100 shadow-2xl transition-all duration-300">
+    <span id="toast-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+    <span id="toast-msg">Catalog loaded</span>
+  </div>
+
+  <!-- Demo / Local File Status Banner -->
+  <div id="demo-banner" class="hidden bg-gradient-to-r from-sky-950/90 via-indigo-950/90 to-slate-900 border-b border-sky-500/30 px-4 py-2.5">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3 text-xs sm:text-sm">
+      <div class="flex items-center gap-2.5 text-sky-200">
+        <span class="px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider bg-sky-500/20 border border-sky-400/30 text-sky-300 rounded-md">Sample Mode</span>
+        <span id="banner-text">Showing built-in sample data because <code class="font-mono text-sky-300">game_catalog.json</code> wasn't auto-fetched (or opened via <code class="font-mono text-sky-300">file://</code>).</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <label for="file-input" class="cursor-pointer px-3 py-1 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold transition">
+          Select Your game_catalog.json
+        </label>
+        <span class="text-slate-400 hidden md:inline">or drag & drop file anywhere</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top Navigation & File Controls -->
+  <header class="sticky top-0 z-30 bg-slate-950/80 backdrop-blur-md border-b border-slate-800/80">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-wrap items-center justify-between gap-4">
+      <!-- Brand Title -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-sky-500/20">
+          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-lg sm:text-xl font-extrabold tracking-tight text-white">GameVault</h1>
+            <span class="text-[11px] font-mono px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 border border-slate-700">LOCAL CATALOG</span>
+          </div>
+          <p id="last-updated-label" class="text-xs text-slate-400">Syncing catalog...</p>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex flex-wrap items-center gap-2.5">
+        <!-- Hidden File Input supporting JSON and CSV -->
+        <input id="file-input" type="file" accept=".json,.csv" class="hidden" />
+
+        <label for="file-input" class="cursor-pointer inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold text-xs sm:text-sm transition shadow-sm shadow-sky-500/20">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+          </svg>
+          <span>Load JSON / CSV</span>
+        </label>
+
+        <button id="btn-export-csv" type="button" class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 font-medium text-xs sm:text-sm transition" title="Export current filtered games to CSV">
+          <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+          <span>Export CSV</span>
+        </button>
+
+        <button id="btn-sample-data" type="button" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800 font-medium text-xs sm:text-sm transition" title="Load built-in demo library">
+          <span>Sample Data</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- Summary Metrics Row -->
+    <section class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
+      <!-- Total Games -->
+      <div class="bg-slate-900/90 border border-slate-800/90 rounded-2xl p-4 flex flex-col justify-between">
+        <div class="flex items-center justify-between text-xs text-slate-400 font-medium">
+          <span>Total Owned</span>
+          <span class="w-2 h-2 rounded-full bg-sky-400"></span>
+        </div>
+        <div class="mt-2 flex items-baseline gap-2">
+          <span id="stat-total" class="text-2xl sm:text-3xl font-extrabold text-white">0</span>
+          <span id="stat-unique" class="text-xs text-slate-400">0 unique</span>
+        </div>
+      </div>
+
+      <!-- Steam Count -->
+      <div class="bg-slate-900/90 border border-slate-800/90 rounded-2xl p-4 flex flex-col justify-between">
+        <div class="flex items-center justify-between text-xs text-sky-300 font-medium">
+          <span>Steam</span>
+          <span class="px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400 font-mono text-[10px]">VALVE</span>
+        </div>
+        <div class="mt-2 flex items-baseline justify-between">
+          <span id="stat-steam" class="text-2xl sm:text-3xl font-extrabold text-white">0</span>
+          <span id="stat-steam-pct" class="text-xs text-slate-400">0%</span>
+        </div>
+      </div>
+
+      <!-- Epic Games Count -->
+      <div class="bg-slate-900/90 border border-slate-800/90 rounded-2xl p-4 flex flex-col justify-between">
+        <div class="flex items-center justify-between text-xs text-amber-300 font-medium">
+          <span>Epic Games</span>
+          <span class="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 font-mono text-[10px]">EGS</span>
+        </div>
+        <div class="mt-2 flex items-baseline justify-between">
+          <span id="stat-epic" class="text-2xl sm:text-3xl font-extrabold text-white">0</span>
+          <span id="stat-epic-pct" class="text-xs text-slate-400">0%</span>
+        </div>
+      </div>
+
+      <!-- Ubisoft Count -->
+      <div class="bg-slate-900/90 border border-slate-800/90 rounded-2xl p-4 flex flex-col justify-between">
+        <div class="flex items-center justify-between text-xs text-indigo-300 font-medium">
+          <span>Ubisoft</span>
+          <span class="px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 font-mono text-[10px]">UBI</span>
+        </div>
+        <div class="mt-2 flex items-baseline justify-between">
+          <span id="stat-ubi" class="text-2xl sm:text-3xl font-extrabold text-white">0</span>
+          <span id="stat-ubi-pct" class="text-xs text-slate-400">0%</span>
+        </div>
+      </div>
+
+      <!-- Total Playtime -->
+      <div class="bg-slate-900/90 border border-slate-800/90 rounded-2xl p-4 flex flex-col justify-between">
+        <div class="flex items-center justify-between text-xs text-emerald-300 font-medium">
+          <span>Total Playtime</span>
+          <span class="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono text-[10px]">HOURS</span>
+        </div>
+        <div class="mt-2 flex items-baseline gap-1.5">
+          <span id="stat-hours" class="text-2xl sm:text-3xl font-extrabold text-white">0</span>
+          <span class="text-xs text-slate-400">hrs</span>
+        </div>
+      </div>
+
+      <!-- Unplayed / Backlog -->
+      <div class="bg-slate-900/90 border border-slate-800/90 rounded-2xl p-4 flex flex-col justify-between">
+        <div class="flex items-center justify-between text-xs text-rose-300 font-medium">
+          <span>Unplayed / 0h</span>
+          <span id="stat-dupes-badge" class="px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 font-mono text-[10px]">0 DUPES</span>
+        </div>
+        <div class="mt-2 flex items-baseline justify-between">
+          <span id="stat-backlog" class="text-2xl sm:text-3xl font-extrabold text-white">0</span>
+          <span class="text-xs text-slate-400">in backlog</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Controls Bar: Search, Store Filters, Playtime Filter, Sort, View Mode -->
+    <section class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-4">
+      <div class="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3.5">
+        <!-- Search Input -->
+        <div class="relative flex-1">
+          <svg class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
+          <input
+            id="search-input"
+            type="text"
+            placeholder="Search games by title, store, or app_id... (Press '/' to focus)"
+            class="w-full pl-10 pr-20 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition"
+          />
+          <button id="clear-search" type="button" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300 hover:text-white">
+            Clear
+          </button>
+        </div>
+
+        <!-- Sort & View Switcher -->
+        <div class="flex flex-wrap items-center gap-2.5">
+          <!-- Playtime / Duplicate Sub-filter -->
+          <select id="status-filter" aria-label="Filter by status" class="px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs sm:text-sm text-slate-200 focus:outline-none focus:border-sky-500">
+            <option value="all">Status: All Games</option>
+            <option value="played">Played (&gt; 0 hrs)</option>
+            <option value="unplayed">Unplayed Backlog (0 hrs)</option>
+            <option value="duplicates">Multi-Store Duplicates Only</option>
+          </select>
+
+          <!-- Sort Dropdown -->
+          <select id="sort-select" aria-label="Sort games" class="px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs sm:text-sm text-slate-200 focus:outline-none focus:border-sky-500">
+            <option value="title-asc">Sort: Title (A → Z)</option>
+            <option value="title-desc">Sort: Title (Z → A)</option>
+            <option value="playtime-desc">Sort: Playtime (High → Low)</option>
+            <option value="store-asc">Sort: Store Name</option>
+          </select>
+
+          <!-- Grid / Table View Toggle -->
+          <div class="inline-flex rounded-xl bg-slate-950 p-1 border border-slate-800">
+            <button id="view-grid-btn" type="button" class="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 bg-sky-500 text-slate-950 transition" title="Card Grid View">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+              </svg>
+              <span>Grid</span>
+            </button>
+            <button id="view-table-btn" type="button" class="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 text-slate-400 hover:text-white transition" title="Compact Table View">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+              </svg>
+              <span>Table</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Store Filter Pills & Result Count -->
+      <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-800/80">
+        <div id="store-pills" class="flex flex-wrap items-center gap-2">
+          <button type="button" data-store="ALL" class="store-pill px-3.5 py-1.5 rounded-xl text-xs font-semibold transition bg-sky-500 text-slate-950">
+            All Stores
+          </button>
+          <button type="button" data-store="Steam" class="store-pill px-3.5 py-1.5 rounded-xl text-xs font-semibold transition bg-slate-950 text-slate-300 hover:bg-slate-800 border border-slate-800">
+            Steam
+          </button>
+          <button type="button" data-store="Epic Games" class="store-pill px-3.5 py-1.5 rounded-xl text-xs font-semibold transition bg-slate-950 text-slate-300 hover:bg-slate-800 border border-slate-800">
+            Epic Games
+          </button>
+          <button type="button" data-store="Ubisoft" class="store-pill px-3.5 py-1.5 rounded-xl text-xs font-semibold transition bg-slate-950 text-slate-300 hover:bg-slate-800 border border-slate-800">
+            Ubisoft
+          </button>
+        </div>
+
+        <div id="results-counter" class="text-xs font-mono text-slate-400">
+          Showing 0 of 0 games
+        </div>
+      </div>
+    </section>
+
+    <!-- Grid View Container -->
+    <section id="grid-container" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"></section>
+
+    <!-- Compact Table View Container -->
+    <section id="table-container" class="hidden bg-slate-900/90 border border-slate-800 rounded-2xl overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="border-b border-slate-800 bg-slate-950/60 text-[11px] font-mono uppercase text-slate-400">
+              <th class="py-3.5 px-4">Game Title</th>
+              <th class="py-3.5 px-4">Store</th>
+              <th class="py-3.5 px-4">Playtime</th>
+              <th class="py-3.5 px-4">App ID</th>
+              <th class="py-3.5 px-4 text-right">Store Link</th>
+            </tr>
+          </thead>
+          <tbody id="table-body" class="divide-y divide-slate-800/70 text-sm"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Empty State -->
+    <section id="empty-state" class="hidden py-16 text-center bg-slate-900/50 border border-dashed border-slate-800 rounded-2xl">
+      <div class="w-12 h-12 mx-auto mb-3 rounded-xl bg-slate-800/80 flex items-center justify-center text-slate-400">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+      </div>
+      <h3 class="text-base font-bold text-white">No matching games found</h3>
+      <p class="text-xs text-slate-400 mt-1 max-w-md mx-auto">Try clearing your search query or switching store and status filters.</p>
+      <button id="btn-reset-filters" type="button" class="mt-4 px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold text-xs transition">
+        Reset All Filters
+      </button>
+    </section>
+
+  </main>
+
+  <!-- Footer with Quick CLI Cheat-Sheet -->
+  <footer class="mt-12 border-t border-slate-800/80 bg-slate-950/60 py-6">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400">
+      <div class="flex items-center gap-2">
+        <span class="font-semibold text-slate-300">Sync Command:</span>
+        <code class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-sky-300 font-mono">python sync_games.py</code>
+        <span class="hidden md:inline text-slate-500">• 100% Local & Private</span>
+      </div>
+      <div>
+        Drop <code class="font-mono text-slate-300">game_catalog.json</code> or <code class="font-mono text-slate-300">game_catalog.csv</code> anywhere on this page to refresh.
+      </div>
+    </div>
+  </footer>
+
+  <!-- Application Logic -->
+  <script>
+    // Built-in Sample Catalog (Displayed if './game_catalog.json' cannot be fetched locally via file://)
+    const SAMPLE_CATALOG = {
+      last_updated: "2026-10-16T19:34:10",
+      total_games: 16,
+      games: [
+        { store: "Steam", app_id: "1145360", title: "Hades", playtime_hours: 84.5 },
+        { store: "Steam", app_id: "1091500", title: "Cyberpunk 2077", playtime_hours: 112.4 },
+        { store: "Steam", app_id: "1245620", title: "ELDEN RING", playtime_hours: 164.0 },
+        { store: "Steam", app_id: "730", title: "Counter-Strike 2", playtime_hours: 420.8 },
+        { store: "Steam", app_id: "413150", title: "Stardew Valley", playtime_hours: 48.2 },
+        { store: "Steam", app_id: "1086940", title: "Baldur's Gate 3", playtime_hours: 139.6 },
+        { store: "Steam", app_id: "292030", title: "The Witcher 3: Wild Hunt", playtime_hours: 95.0 },
+        { store: "Steam", app_id: "620", title: "Portal 2", playtime_hours: 19.5 },
+        { store: "Steam", app_id: "367520", title: "Hollow Knight", playtime_hours: 0.0 },
+        { store: "Epic Games", app_id: "9d2d0eb64d5c44529cece33fe2a46482", title: "Grand Theft Auto V", playtime_hours: 0.0 },
+        { store: "Epic Games", app_id: "fn_prod", title: "Alan Wake 2", playtime_hours: 0.0 },
+        { store: "Epic Games", app_id: "3061500", title: "Control", playtime_hours: 0.0 },
+        { store: "Epic Games", app_id: "egs_witcher3", title: "The Witcher 3: Wild Hunt", playtime_hours: 0.0 },
+        { store: "Epic Games", app_id: "egs_hades", title: "Hades", playtime_hours: 0.0 },
+        { store: "Ubisoft", app_id: "ubi_1", title: "Assassin's Creed Mirage", playtime_hours: 0.0 },
+        { store: "Ubisoft", app_id: "ubi_2", title: "Tom Clancy's Rainbow Six Siege", playtime_hours: 0.0 }
+      ]
+    };
+
+    // Application State
+    const state = {
+      rawGames: [],
+      lastUpdated: "",
+      isSample: false,
+      searchQuery: "",
+      selectedStore: "ALL",
+      statusFilter: "all",
+      sortBy: "title-asc",
+      viewMode: "grid", // 'grid' | 'table'
+      duplicateMap: new Map() // normalizedTitle -> array of stores
+    };
+
+    // Normalize title to identify cross-store duplicates reliably
+    function normalizeTitle(title) {
+      return String(title || "")
+        .toLowerCase()
+        .replace(/[™®©]/g, "")
+        .replace(/[^a-z0-9]/g, "");
+    }
+
+    // Compute duplicate ownership map across stores
+    function computeDuplicates(games) {
+      const map = new Map();
+      games.forEach(g => {
+        const key = normalizeTitle(g.title);
+        if (!key) return;
+        if (!map.has(key)) {
+          map.set(key, new Set());
+        }
+        map.get(key).add(g.store);
+      });
+      state.duplicateMap = map;
+    }
+
+    // Check if a game is owned on multiple stores
+    function getOtherStores(game) {
+      const key = normalizeTitle(game.title);
+      const storesSet = state.duplicateMap.get(key);
+      if (!storesSet || storesSet.size <= 1) return [];
+      return Array.from(storesSet);
+    }
+
+    // Generate deterministic vivid gradient for games without Steam cover art
+    function getGradientStyle(title, store) {
+      let hash = 0;
+      const str = String(title || "Game");
+      for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+      }
+      const palettes = {
+        "Steam": [
+          "from-sky-900 via-slate-900 to-indigo-950",
+          "from-blue-900 via-slate-900 to-cyan-950"
+        ],
+        "Epic Games": [
+          "from-zinc-800 via-neutral-900 to-slate-950",
+          "from-amber-950/70 via-neutral-900 to-stone-950"
+        ],
+        "Ubisoft": [
+          "from-indigo-900 via-blue-950 to-slate-950",
+          "from-violet-900 via-indigo-950 to-slate-950"
+        ]
+      };
+      const storePalettes = palettes[store] || palettes["Steam"];
+      return storePalettes[Math.abs(hash) % storePalettes.length];
+    }
+
+    // Get 2-letter initials for fallback artwork
+    function getInitials(title) {
+      const words = String(title || "GM")
+        .replace(/[^a-zA-Z0-9\s]/g, "")
+        .trim()
+        .split(/\s+/);
+      if (words.length === 1) return words[0].substring(0, 2).toUpperCase();
+      return (words[0][0] + words[1][0]).toUpperCase();
+    }
+
+    // Store Badge HTML helper
+    function getStoreBadgeHTML(store) {
+      if (store === "Steam") {
+        return `<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-sky-500/15 text-sky-300 border border-sky-500/30">
+          <span class="w-1.5 h-1.5 rounded-full bg-sky-400"></span>Steam
+        </span>`;
+      }
+      if (store === "Epic Games") {
+        return `<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+          <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>Epic Games
+        </span>`;
+      }
+      if (store === "Ubisoft") {
+        return `<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+          <span class="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>Ubisoft
+        </span>`;
+      }
+      return `<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-slate-700 text-slate-200">${escapeHTML(store)}</span>`;
+    }
+
+    // Escape HTML to prevent XSS
+    function escapeHTML(str) {
+      return String(str ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    // Show Toast notification
+    let toastTimer = null;
+    function showToast(message, isWarning = false) {
+      const toast = document.getElementById("toast");
+      const dot = document.getElementById("toast-dot");
+      const msg = document.getElementById("toast-msg");
+      msg.textContent = message;
+      dot.className = `w-2.5 h-2.5 rounded-full ${isWarning ? "bg-amber-400" : "bg-emerald-400"}`;
+      toast.classList.remove("hidden");
+      toast.classList.add("flex");
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toast.classList.add("hidden");
+        toast.classList.remove("flex");
+      }, 3600);
+    }
+
+    // Load catalog payload into state and trigger UI render
+    function loadCatalogData(payload, isSample = false, sourceName = "game_catalog.json") {
+      const gamesList = Array.isArray(payload) ? payload : (payload.games || []);
+      state.rawGames = gamesList.map((g, idx) => ({
+        store: String(g.store || "Unknown").trim(),
+        app_id: String(g.app_id || `id_${idx}`).trim(),
+        title: String(g.title || "Untitled Game").trim(),
+        playtime_hours: parseFloat(g.playtime_hours) || 0.0
+      }));
+      state.lastUpdated = payload.last_updated || new Date().toISOString().slice(0, 19);
+      state.isSample = isSample;
+
+      computeDuplicates(state.rawGames);
+
+      const demoBanner = document.getElementById("demo-banner");
+      if (isSample) {
+        demoBanner.classList.remove("hidden");
+      } else {
+        demoBanner.classList.add("hidden");
+        showToast(`Loaded ${state.rawGames.length} games from ${sourceName}`);
+      }
+
+      updateSummaryStats();
+      renderCatalog();
+    }
+
+    // Parse CSV file into catalog JSON format if user drops game_catalog.csv
+    function parseCSV(csvText) {
+      const lines = csvText.split(/\r?\n/).filter(l => l.trim().length > 0);
+      if (lines.length < 2) return [];
+      const headers = lines[0].split(",").map(h => h.trim().toLowerCase());
+
+      const parseLine = (line) => {
+        const result = [];
+        let cur = "";
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i];
+          if (ch === '"') {
+            inQuotes = !inQuotes;
+          } else if (ch === "," && !inQuotes) {
+            result.push(cur);
+            cur = "";
+          } else {
+            cur += ch;
+          }
+        }
+        result.push(cur);
+        return result.map(v => v.trim());
+      };
+
+      const games = [];
+      for (let i = 1; i < lines.length; i++) {
+        const cols = parseLine(lines[i]);
+        const row = {};
+        headers.forEach((h, idx) => {
+          row[h] = cols[idx] ?? "";
+        });
+        if (row.title) {
+          games.push({
+            title: row.title,
+            store: row.store || "Steam",
+            playtime_hours: parseFloat(row.playtime_hours) || 0.0,
+            app_id: row.app_id || `csv_${i}`
+          });
+        }
+      }
+      return {
+        last_updated: new Date().toISOString().slice(0, 19),
+        total_games: games.length,
+        games
+      };
+    }
+
+    // Update top metric cards
+    function updateSummaryStats() {
+      const total = state.rawGames.length;
+      const uniqueTitles = state.duplicateMap.size;
+      const steamCount = state.rawGames.filter(g => g.store === "Steam").length;
+      const epicCount = state.rawGames.filter(g => g.store === "Epic Games").length;
+      const ubiCount = state.rawGames.filter(g => g.store === "Ubisoft").length;
+
+      const totalHours = state.rawGames.reduce((acc, g) => acc + (g.playtime_hours || 0), 0);
+      const backlogCount = state.rawGames.filter(g => (g.playtime_hours || 0) === 0).length;
+
+      let dupeCount = 0;
+      state.duplicateMap.forEach(stores => {
+        if (stores.size > 1) dupeCount++;
+      });
+
+      document.getElementById("stat-total").textContent = total.toLocaleString();
+      document.getElementById("stat-unique").textContent = `${uniqueTitles.toLocaleString()} unique`;
+
+      document.getElementById("stat-steam").textContent = steamCount.toLocaleString();
+      document.getElementById("stat-steam-pct").textContent = total ? `${Math.round((steamCount / total) * 100)}%` : "0%";
+
+      document.getElementById("stat-epic").textContent = epicCount.toLocaleString();
+      document.getElementById("stat-epic-pct").textContent = total ? `${Math.round((epicCount / total) * 100)}%` : "0%";
+
+      document.getElementById("stat-ubi").textContent = ubiCount.toLocaleString();
+      document.getElementById("stat-ubi-pct").textContent = total ? `${Math.round((ubiCount / total) * 100)}%` : "0%";
+
+      document.getElementById("stat-hours").textContent = totalHours.toFixed(1);
+      document.getElementById("stat-backlog").textContent = backlogCount.toLocaleString();
+      document.getElementById("stat-dupes-badge").textContent = `${dupeCount} MULTI-STORE`;
+
+      const formattedDate = state.lastUpdated.replace("T", " ");
+      document.getElementById("last-updated-label").textContent =
+        `${state.isSample ? "Sample Catalog" : "Last Synced"}: ${formattedDate}`;
+    }
+
+    // Filter and sort games based on active controls
+    function getFilteredGames() {
+      const q = state.searchQuery.trim().toLowerCase();
+
+      const filtered = state.rawGames.filter(g => {
+        if (state.selectedStore !== "ALL" && g.store !== state.selectedStore) {
+          return false;
+        }
+        if (state.statusFilter === "played" && g.playtime_hours <= 0) {
+          return false;
+        }
+        if (state.statusFilter === "unplayed" && g.playtime_hours > 0) {
+          return false;
+        }
+        if (state.statusFilter === "duplicates" && getOtherStores(g).length <= 1) {
+          return false;
+        }
+        if (q) {
+          const matchTitle = g.title.toLowerCase().includes(q);
+          const matchId = g.app_id.toLowerCase().includes(q);
+          const matchStore = g.store.toLowerCase().includes(q);
+          return matchTitle || matchId || matchStore;
+        }
+        return true;
+      });
+
+      filtered.sort((a, b) => {
+        if (state.sortBy === "title-asc") {
+          return a.title.localeCompare(b.title);
+        }
+        if (state.sortBy === "title-desc") {
+          return b.title.localeCompare(a.title);
+        }
+        if (state.sortBy === "playtime-desc") {
+          if (b.playtime_hours !== a.playtime_hours) {
+            return b.playtime_hours - a.playtime_hours;
+          }
+          return a.title.localeCompare(b.title);
+        }
+        if (state.sortBy === "store-asc") {
+          if (a.store !== b.store) {
+            return a.store.localeCompare(b.store);
+          }
+          return a.title.localeCompare(b.title);
+        }
+        return 0;
+      });
+
+      return filtered;
+    }
+
+    // Render Grid and Table views
+    function renderCatalog() {
+      const filtered = getFilteredGames();
+      const gridEl = document.getElementById("grid-container");
+      const tableWrapEl = document.getElementById("table-container");
+      const tableBodyEl = document.getElementById("table-body");
+      const emptyEl = document.getElementById("empty-state");
+      const counterEl = document.getElementById("results-counter");
+
+      counterEl.textContent = `Showing ${filtered.length} of ${state.rawGames.length} games`;
+
+      if (filtered.length === 0) {
+        gridEl.classList.add("hidden");
+        tableWrapEl.classList.add("hidden");
+        emptyEl.classList.remove("hidden");
+        return;
+      }
+
+      emptyEl.classList.add("hidden");
+
+      if (state.viewMode === "grid") {
+        gridEl.classList.remove("hidden");
+        tableWrapEl.classList.add("hidden");
+
+        gridEl.innerHTML = filtered.map(game => {
+          const isSteam = game.store === "Steam" && /^\d+$/.test(game.app_id);
+          const coverUrl = isSteam
+            ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${encodeURIComponent(game.app_id)}/header.jpg`
+            : "";
+          const gradient = getGradientStyle(game.title, game.store);
+          const initials = getInitials(game.title);
+          const otherStores = getOtherStores(game);
+          const isDupe = otherStores.length > 1;
+
+          const playtimeBadge = game.playtime_hours > 0
+            ? `<span class="text-xs font-mono text-emerald-400 font-semibold">${game.playtime_hours.toFixed(1)} hrs</span>`
+            : `<span class="text-xs font-mono text-slate-500">0.0 hrs</span>`;
+
+          const storeUrl = isSteam
+            ? `https://store.steampowered.com/app/${encodeURIComponent(game.app_id)}`
+            : null;
+
+          return `
+            <article class="card-shine bg-slate-900 border border-slate-800/90 rounded-2xl overflow-hidden flex flex-col justify-between group">
+              <div>
+                <!-- Cover Banner -->
+                <div class="relative h-36 w-full bg-gradient-to-br ${gradient} overflow-hidden flex items-center justify-center">
+                  <!-- Stylized Fallback Initials -->
+                  <div class="flex flex-col items-center justify-center select-none">
+                    <span class="text-3xl font-black tracking-wider text-white/20 group-hover:scale-110 transition-transform duration-300">${escapeHTML(initials)}</span>
+                    <span class="text-[10px] font-mono uppercase tracking-widest text-white/30 mt-1">${escapeHTML(game.store)}</span>
+                  </div>
+
+                  ${isSteam ? `
+                    <img
+                      src="${coverUrl}"
+                      alt="${escapeHTML(game.title)}"
+                      loading="lazy"
+                      onerror="this.style.display='none'"
+                      class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                  ` : ""}
+
+                  <!-- Top-Right Multi-Store Duplicate Badge -->
+                  ${isDupe ? `
+                    <div class="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md bg-slate-950/85 backdrop-blur-sm border border-amber-500/40 text-[10px] font-semibold text-amber-300" title="Owned on: ${escapeHTML(otherStores.join(', '))}">
+                      Multi-Store (${otherStores.length})
+                    </div>
+                  ` : ""}
+                </div>
+
+                <!-- Card Details -->
+                <div class="p-4">
+                  <div class="flex items-start justify-between gap-2">
+                    <h2 class="font-bold text-sm sm:text-base text-white group-hover:text-sky-300 transition line-clamp-1" title="${escapeHTML(game.title)}">
+                      ${escapeHTML(game.title)}
+                    </h2>
+                  </div>
+                  <p class="text-[11px] font-mono text-slate-500 mt-1 truncate" title="App ID: ${escapeHTML(game.app_id)}">
+                    ID: ${escapeHTML(game.app_id)}
+                  </p>
+                </div>
+              </div>
+
+              <!-- Card Footer -->
+              <div class="px-4 py-3 bg-slate-950/50 border-t border-slate-800/80 flex items-center justify-between">
+                ${getStoreBadgeHTML(game.store)}
+                <div class="flex items-center gap-2">
+                  ${playtimeBadge}
+                  ${storeUrl ? `
+                    <a href="${storeUrl}" target="_blank" rel="noopener noreferrer" class="text-slate-400 hover:text-sky-400 transition" title="View on Steam Store">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                      </svg>
+                    </a>
+                  ` : ""}
+                </div>
+              </div>
+            </article>
+          `;
+        }).join("");
+      } else {
+        // Compact Table View
+        gridEl.classList.add("hidden");
+        tableWrapEl.classList.remove("hidden");
+
+        tableBodyEl.innerHTML = filtered.map(game => {
+          const isSteam = game.store === "Steam" && /^\d+$/.test(game.app_id);
+          const otherStores = getOtherStores(game);
+          const isDupe = otherStores.length > 1;
+          const storeUrl = isSteam
+            ? `https://store.steampowered.com/app/${encodeURIComponent(game.app_id)}`
+            : null;
+
+          return `
+            <tr class="hover:bg-slate-800/50 transition">
+              <td class="py-3 px-4 font-semibold text-white">
+                <div class="flex items-center gap-2">
+                  <span>${escapeHTML(game.title)}</span>
+                  ${isDupe ? `<span class="px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-mono" title="Also on: ${escapeHTML(otherStores.join(', '))}">DUPE</span>` : ""}
+                </div>
+              </td>
+              <td class="py-3 px-4">${getStoreBadgeHTML(game.store)}</td>
+              <td class="py-3 px-4 font-mono text-xs ${game.playtime_hours > 0 ? 'text-emerald-400 font-semibold' : 'text-slate-500'}">
+                ${game.playtime_hours.toFixed(1)} hrs
+              </td>
+              <td class="py-3 px-4 font-mono text-xs text-slate-400 max-w-[180px] truncate" title="${escapeHTML(game.app_id)}">
+                ${escapeHTML(game.app_id)}
+              </td>
+              <td class="py-3 px-4 text-right">
+                ${storeUrl ? `
+                  <a href="${storeUrl}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-xs text-sky-400 hover:text-sky-300 font-medium">
+                    <span>Steam</span>
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                    </svg>
+                  </a>
+                ` : `<span class="text-xs text-slate-600">—</span>`}
+              </td>
+            </tr>
+          `;
+        }).join("");
+      }
+    }
+
+    // Handle uploaded or dropped file (.json or .csv)
+    function handleLocalFile(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const content = e.target.result;
+          if (file.name.toLowerCase().endsWith(".csv")) {
+            const parsed = parseCSV(content);
+            loadCatalogData(parsed, false, file.name);
+          } else {
+            const json = JSON.parse(content);
+            loadCatalogData(json, false, file.name);
+          }
+        } catch (err) {
+          showToast("Invalid file format. Please select game_catalog.json or .csv", true);
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    // Export currently filtered catalog to CSV
+    function exportFilteredToCSV() {
+      const filtered = getFilteredGames();
+      if (!filtered.length) {
+        showToast("No games in current filter to export", true);
+        return;
+      }
+      const header = ["title", "store", "playtime_hours", "app_id"];
+      const rows = filtered.map(g => [
+        `"${String(g.title).replace(/"/g, '""')}"`,
+        `"${String(g.store).replace(/"/g, '""')}"`,
+        g.playtime_hours,
+        `"${String(g.app_id).replace(/"/g, '""')}"`
+      ]);
+      const csvContent = [header.join(","), ...rows.map(r => r.join(","))].join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `filtered_game_catalog_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast(`Exported ${filtered.length} games to CSV`);
+    }
+
+    // Initialize Event Listeners & Auto-Fetch './game_catalog.json'
+    window.addEventListener("DOMContentLoaded", () => {
+      const searchInput = document.getElementById("search-input");
+      const clearSearchBtn = document.getElementById("clear-search");
+      const statusFilter = document.getElementById("status-filter");
+      const sortSelect = document.getElementById("sort-select");
+      const viewGridBtn = document.getElementById("view-grid-btn");
+      const viewTableBtn = document.getElementById("view-table-btn");
+      const fileInput = document.getElementById("file-input");
+      const sampleBtn = document.getElementById("btn-sample-data");
+      const exportBtn = document.getElementById("btn-export-csv");
+      const resetFiltersBtn = document.getElementById("btn-reset-filters");
+      const dropOverlay = document.getElementById("drop-overlay");
+
+      // Search input handler
+      searchInput.addEventListener("input", (e) => {
+        state.searchQuery = e.target.value;
+        clearSearchBtn.classList.toggle("hidden", !state.searchQuery);
+        renderCatalog();
+      });
+
+      clearSearchBtn.addEventListener("click", () => {
+        searchInput.value = "";
+        state.searchQuery = "";
+        clearSearchBtn.classList.add("hidden");
+        renderCatalog();
+      });
+
+      // Keyboard shortcut '/' to focus search
+      window.addEventListener("keydown", (e) => {
+        if (e.key === "/" && document.activeElement !== searchInput) {
+          e.preventDefault();
+          searchInput.focus();
+        }
+      });
+
+      // Store filter pills
+      document.querySelectorAll(".store-pill").forEach(btn => {
+        btn.addEventListener("click", () => {
+          state.selectedStore = btn.getAttribute("data-store");
+          document.querySelectorAll(".store-pill").forEach(b => {
+            b.className = "store-pill px-3.5 py-1.5 rounded-xl text-xs font-semibold transition bg-slate-950 text-slate-300 hover:bg-slate-800 border border-slate-800";
+          });
+          btn.className = "store-pill px-3.5 py-1.5 rounded-xl text-xs font-semibold transition bg-sky-500 text-slate-950";
+          renderCatalog();
+        });
+      });
+
+      // Status & Sort dropdowns
+      statusFilter.addEventListener("change", (e) => {
+        state.statusFilter = e.target.value;
+        renderCatalog();
+      });
+
+      sortSelect.addEventListener("change", (e) => {
+        state.sortBy = e.target.value;
+        renderCatalog();
+      });
+
+      // View mode toggle
+      viewGridBtn.addEventListener("click", () => {
+        state.viewMode = "grid";
+        viewGridBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 bg-sky-500 text-slate-950 transition";
+        viewTableBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 text-slate-400 hover:text-white transition";
+        renderCatalog();
+      });
+
+      viewTableBtn.addEventListener("click", () => {
+        state.viewMode = "table";
+        viewTableBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 bg-sky-500 text-slate-950 transition";
+        viewGridBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 text-slate-400 hover:text-white transition";
+        renderCatalog();
+      });
+
+      // Reset all filters button
+      resetFiltersBtn.addEventListener("click", () => {
+        state.searchQuery = "";
+        searchInput.value = "";
+        clearSearchBtn.classList.add("hidden");
+        state.selectedStore = "ALL";
+        state.statusFilter = "all";
+        statusFilter.value = "all";
+        document.querySelectorAll(".store-pill").forEach((b, idx) => {
+          b.className = idx === 0
+            ? "store-pill px-3.5 py-1.5 rounded-xl text-xs font-semibold transition bg-sky-500 text-slate-950"
+            : "store-pill px-3.5 py-1.5 rounded-xl text-xs font-semibold transition bg-slate-950 text-slate-300 hover:bg-slate-800 border border-slate-800";
+        });
+        renderCatalog();
+      });
+
+      // File Picker input
+      fileInput.addEventListener("change", (e) => {
+        if (e.target.files && e.target.files[0]) {
+          handleLocalFile(e.target.files[0]);
+          e.target.value = "";
+        }
+      });
+
+      // Load Sample Data button
+      sampleBtn.addEventListener("click", () => {
+        loadCatalogData(SAMPLE_CATALOG, true);
+        showToast("Loaded sample catalog data");
+      });
+
+      // Export CSV button
+      exportBtn.addEventListener("click", exportFilteredToCSV);
+
+      // Drag and drop anywhere on window
+      let dragDepth = 0;
+      window.addEventListener("dragenter", (e) => {
+        e.preventDefault();
+        dragDepth++;
+        dropOverlay.classList.remove("hidden");
+        dropOverlay.classList.add("flex");
+      });
+
+      window.addEventListener("dragover", (e) => {
+        e.preventDefault();
+      });
+
+      window.addEventListener("dragleave", (e) => {
+        e.preventDefault();
+        dragDepth = Math.max(0, dragDepth - 1);
+        if (dragDepth === 0) {
+          dropOverlay.classList.add("hidden");
+          dropOverlay.classList.remove("flex");
+        }
+      });
+
+      window.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dragDepth = 0;
+        dropOverlay.classList.add("hidden");
+        dropOverlay.classList.remove("flex");
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+          handleLocalFile(e.dataTransfer.files[0]);
+        }
+      });
+
+      // Attempt automatic fetch of ./game_catalog.json
+      fetch("./game_catalog.json", { cache: "no-store" })
+        .then(resp => {
+          if (!resp.ok) throw new Error("Not found");
+          return resp.json();
+        })
+        .then(data => {
+          loadCatalogData(data, false, "game_catalog.json");
+        })
+        .catch(() => {
+          // Fallback to sample catalog if opened via file:// or before first sync
+          loadCatalogData(SAMPLE_CATALOG, true);
+        });
+    });
+  </script>
+</body>
+</html>
